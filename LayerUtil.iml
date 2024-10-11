@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="JAVA_MODULE" version="4">
   <component name="EclipseModuleManager" forced_jdk="true">
-    <varelement var="file://$JRE_LIB$" value="JRE_LIB" />
-    <varelement var="file://$JRE_LIB$" kind="src:" value="JRE_SRC" />
+    <varelement var="file://$JRE_LIB$" value="src:JRE_SRC" />
     <src_description expected_position="1">
       <src_folder value="file://$MODULE_DIR$/src" expected_position="0" />
     </src_description>
@@ -16,5 +15,6 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="lib" level="project" />
+    <orderEntry type="library" name="gson-2.8.6" level="project" />
   </component>
 </module>

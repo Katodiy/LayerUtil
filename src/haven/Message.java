@@ -1,32 +1,11 @@
-/*
- *  This file is part of the Haven & Hearth game client.
- *  Copyright (C) 2009 Fredrik Tolf <fredrik@dolda2000.com>, and
- *                     Björn Johannessen <johannessen.bjorn@gmail.com>
- *
- *  Redistribution and/or modification of this file is subject to the
- *  terms of the GNU Lesser General Public License, version 3, as
- *  published by the Free Software Foundation.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  Other parts of this source tree adhere to other copying
- *  rights. Please see the file `COPYING' in the root directory of the
- *  source tree for details.
- *
- *  A copy the GNU Lesser General Public License is distributed along
- *  with the source tree of which this file is a part in the file
- *  `doc/LPGL-3'. If it is missing for any reason, please see the Free
- *  Software Foundation's website at <http://www.fsf.org/>, or write
- *  to the Free Software Foundation, Inc., 59 Temple Place, Suite 330,
- *  Boston, MA 02111-1307 USA
- */
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by FernFlower decompiler)
+//
 
 package haven;
 
-import java.awt.*;
+import java.awt.Color;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
@@ -48,407 +27,517 @@ public abstract class Message {
     public static final int T_FLOAT64 = 16;
     public static final int T_FCOORD32 = 18;
     public static final int T_FCOORD64 = 19;
-
-    private final static byte[] empty = new byte[0];
-    public int rh = 0, rt = 0, wh = 0, wt = 0;
-    public byte[] rbuf = empty, wbuf = empty;
-
+    private static final byte[] empty = new byte[0];
+    public int rh = 0;
+    public int rt = 0;
+    public int wh = 0;
+    public int wt = 0;
+    public byte[] rbuf;
+    public byte[] wbuf;
     public static final Message nil = new Message() {
-	    public boolean underflow(int hint) {return(false);}
-	    public void overflow(int min) {throw(new RuntimeException("nil message is not writable"));}
-	    public String toString() {return("Message(nil)");}
-	};
+	public boolean underflow(int hint) {
+	    return false;
+	}
 
-    public static class BinError extends RuntimeException {
-	public BinError(String message) {
-	    super(message);
+	public void overflow(int min) {
+	    throw new RuntimeException("nil message is not writable");
 	}
-	public BinError(String message, Throwable cause) {
-	    super(message, cause);
+
+	public String toString() {
+	    return "Message(nil)";
 	}
-	public BinError(Throwable cause) {
-	    super(cause);
+    };
+
+    public Message() {
+	this.rbuf = empty;
+	this.wbuf = empty;
+    }
+
+    public abstract boolean underflow(int var1);
+
+    private void rensure(int len) {
+	while(true) {
+	    if (len > this.rt - this.rh) {
+		if (this.underflow(this.rh + len - this.rt)) {
+		    continue;
+		}
+
+		throw new EOF("Required " + len + " bytes, got only " + (this.rt - this.rh));
+	    }
+
+	    return;
 	}
     }
-    public static class EOF extends BinError {
-	public EOF(String message) {
-	    super(message);
+
+    private int rget(int len) {
+	this.rensure(len);
+	int co = this.rh;
+	this.rh += len;
+	return co;
+    }
+
+    public boolean eom() {
+	return this.rh >= this.rt && !this.underflow(1);
+    }
+
+    public byte int8() {
+	this.rensure(1);
+	return this.rbuf[this.rh++];
+    }
+
+    public byte uint8() {
+	return (byte)(this.int8() & 255);
+    }
+
+    public short int16() {
+	int off = this.rget(2);
+	return (short)Utils.int16d(this.rbuf, off);
+    }
+
+    public short uint16() {
+	int off = this.rget(2);
+	return (short)Utils.uint16d(this.rbuf, off);
+    }
+
+    public int int32() {
+	int off = this.rget(4);
+	return Utils.int32d(this.rbuf, off);
+    }
+
+    public long uint32() {
+	int off = this.rget(4);
+	return Utils.uint32d(this.rbuf, off);
+    }
+
+    public long int64() {
+	int off = this.rget(8);
+	return Utils.int64d(this.rbuf, off);
+    }
+
+    public String string() {
+	int l;
+	for(l = 0; l < this.rt - this.rh || this.underflow(256); ++l) {
+	    if (this.rbuf[l + this.rh] == 0) {
+		String ret = new String(this.rbuf, this.rh, l, StandardCharsets.UTF_8);
+		this.rh += l + 1;
+		return ret;
+	    }
+	}
+
+	throw new EOF("Found no NUL (at length " + l + ")");
+    }
+
+    public void skip(int n) {
+	while(n > 0) {
+	    if (this.rh >= this.rt && !this.underflow(Math.min(n, 1024))) {
+		throw new EOF("Out of bytes to skip");
+	    }
+
+	    int s = Math.min(n, this.rt - this.rh);
+	    this.rh += s;
+	    n -= s;
+	}
+
+    }
+
+    public void skip() {
+	do {
+	    this.rh = this.rt;
+	} while(this.underflow(1024));
+
+    }
+
+    public byte[] bytes(int n) {
+	byte[] ret = new byte[n];
+	this.rensure(n);
+	System.arraycopy(this.rbuf, this.rh, ret, 0, n);
+	this.rh += n;
+	return ret;
+    }
+
+    public byte[] bytes() {
+	while(this.underflow(65536)) {
+	}
+
+	return this.bytes(this.rt - this.rh);
+    }
+
+    public void bytes(byte[] b, int off, int len) {
+	int r;
+	for(int olen = len; len > 0; len -= r) {
+	    if (this.rh >= this.rt && !this.underflow(Math.min(len, 1024))) {
+		throw new EOF("Required " + olen + " bytes, got only " + (olen - len));
+	    }
+
+	    r = Math.min(len, this.rt - this.rh);
+	    System.arraycopy(this.rbuf, this.rh, b, off, r);
+	    this.rh += r;
+	    off += r;
+	}
+
+    }
+
+    public void bytes(byte[] b) {
+	this.bytes(b, 0, b.length);
+    }
+
+    public Coord coord() {
+	return new Coord(this.int32(), this.int32());
+    }
+
+    public Coord coord16() {
+	return new Coord(this.uint16(), this.uint16());
+    }
+
+    public Color color() {
+	return new Color(this.uint8() & 255, this.uint8() & 255, this.uint8() & 255, this.uint8() & 255);
+    }
+
+    public float float8() {
+	return Utils.mfdec(this.int8());
+    }
+
+    public float float16() {
+	return Utils.hfdec(this.int16());
+    }
+
+    public float float32() {
+	int off = this.rget(4);
+	return Utils.float32d(this.rbuf, off);
+    }
+
+    public double float64() {
+	int off = this.rget(8);
+	return Utils.float64d(this.rbuf, off);
+    }
+
+    public double cpfloat() {
+	int off = this.rget(5);
+	return Utils.floatd(this.rbuf, off);
+    }
+
+    public float snorm8() {
+	return (float)Utils.clip(this.int8(), -127, 127) / 127.0F;
+    }
+
+    public float unorm8() {
+	return (float)this.uint8() / 255.0F;
+    }
+
+    public float snorm16() {
+	return (float)Utils.clip(this.int16(), -32767, 32767) / 32767.0F;
+    }
+
+    public float unorm16() {
+	return (float)this.uint16() / 65535.0F;
+    }
+
+    public double snorm32() {
+	return (double)Utils.clip(this.int32(), -2147483647, Integer.MAX_VALUE) / 2.147483647E9;
+    }
+
+    public double unorm32() {
+	return (double)this.uint32() / 4.294967295E9;
+    }
+
+    public Object[] list() {
+	ArrayList<Object> ret = new ArrayList();
+
+	while(true) {
+	    if (!this.eom()) {
+		int t = this.uint8();
+		switch (t) {
+		    case 0:
+			break;
+		    case 1:
+			ret.add(this.int32());
+			continue;
+		    case 2:
+			ret.add(this.string());
+			continue;
+		    case 3:
+			ret.add(this.coord());
+			continue;
+		    case 4:
+			ret.add(this.uint8());
+			continue;
+		    case 5:
+			ret.add(this.uint16());
+			continue;
+		    case 6:
+			ret.add(this.color());
+			continue;
+		    case 7:
+		    case 11:
+		    case 17:
+		    default:
+			throw new FormatError("Encountered unknown type " + t + " in TTO list.");
+		    case 8:
+			ret.add(this.list());
+			continue;
+		    case 9:
+			ret.add(this.int8());
+			continue;
+		    case 10:
+			ret.add(this.int16());
+			continue;
+		    case 12:
+			ret.add((Object)null);
+			continue;
+		    case 13:
+			ret.add(this.int64());
+			continue;
+		    case 14:
+			int len = this.uint8();
+			if ((len & 128) != 0) {
+			    len = this.int32();
+			}
+
+			ret.add(this.bytes(len));
+			continue;
+		    case 15:
+			ret.add(this.float32());
+			continue;
+		    case 16:
+			ret.add(this.float64());
+			continue;
+		    case 18:
+			ret.add(new Coord2d((double)this.float32(), (double)this.float32()));
+			continue;
+		    case 19:
+			ret.add(new Coord2d(this.float64(), this.float64()));
+			continue;
+		}
+	    }
+
+	    return ret.toArray();
 	}
     }
+
+    public abstract void overflow(int var1);
+
+    private void wensure(int len) {
+	if (len > this.wt - this.wh) {
+	    this.overflow(len);
+	}
+
+    }
+
+    private int wget(int len) {
+	this.wensure(len);
+	int co = this.wh;
+	this.wh += len;
+	return co;
+    }
+
+    public Message addbytes(byte[] src, int off, int len) {
+	this.wensure(len);
+	System.arraycopy(src, off, this.wbuf, this.wh, len);
+	this.wh += len;
+	return this;
+    }
+
+    public Message addbytes(byte[] src) {
+	this.addbytes(src, 0, src.length);
+	return this;
+    }
+
+    public Message addint8(byte num) {
+	this.wensure(1);
+	this.wbuf[this.wh++] = num;
+	return this;
+    }
+
+    public Message adduint8(int num) {
+	this.wensure(1);
+	this.wbuf[this.wh++] = (byte)num;
+	return this;
+    }
+
+    public Message addint16(short num) {
+	int off = this.wget(2);
+	Utils.int16e(num, this.wbuf, off);
+	return this;
+    }
+
+    public Message adduint16(int num) {
+	int off = this.wget(2);
+	Utils.uint16e(num, this.wbuf, off);
+	return this;
+    }
+
+    public Message addint32(int num) {
+	int off = this.wget(4);
+	Utils.int32e(num, this.wbuf, off);
+	return this;
+    }
+
+    public Message adduint32(long num) {
+	int off = this.wget(4);
+	Utils.uint32e(num, this.wbuf, off);
+	return this;
+    }
+
+    public Message addint64(long num) {
+	int off = this.wget(8);
+	Utils.int64e(num, this.wbuf, off);
+	return this;
+    }
+
+    public Message addstring2(String str) {
+	this.addbytes(str.getBytes(StandardCharsets.UTF_8));
+	return this;
+    }
+
+    public Message addstring(String str) {
+	this.addstring2(str);
+	this.adduint8(0);
+	return this;
+    }
+
+    public Message addcoord(Coord c) {
+	this.addint32(c.x);
+	this.addint32(c.y);
+	return this;
+    }
+
+    public Message addcoord16(Coord c) {
+	this.addint16((short)c.x);
+	this.addint16((short)c.y);
+	return this;
+    }
+
+    public Message addcolor(Color color) {
+	this.adduint8(color.getRed());
+	this.adduint8(color.getGreen());
+	this.adduint8(color.getBlue());
+	this.adduint8(color.getAlpha());
+	return this;
+    }
+
+    public Message addfloat8(float num) {
+	return this.addint8(Utils.mfenc(num));
+    }
+
+    public Message addfloat16(float num) {
+	return this.addint16(Utils.hfenc(num));
+    }
+
+    public Message addfloat32(float num) {
+	int off = this.wget(4);
+	Utils.float32e(num, this.wbuf, off);
+	return this;
+    }
+
+    public Message addfloat64(double num) {
+	int off = this.wget(8);
+	Utils.float64e(num, this.wbuf, off);
+	return this;
+    }
+
+    public Message addlist(Object... args) {
+	Object[] var2 = args;
+	int var3 = args.length;
+
+	for(int var4 = 0; var4 < var3; ++var4) {
+	    Object o = var2[var4];
+	    if (o == null) {
+		this.adduint8(12);
+	    } else if (o instanceof Byte) {
+		this.adduint8(4);
+		this.adduint8((Byte)o);
+	    } else if (o instanceof Short) {
+		this.adduint8(5);
+		this.adduint16((Short)o);
+	    } else if (o instanceof Integer) {
+		this.adduint8(1);
+		this.addint32((Integer)o);
+	    } else if (o instanceof String) {
+		this.adduint8(2);
+		this.addstring((String)o);
+	    } else if (o instanceof Coord) {
+		this.adduint8(3);
+		this.addcoord((Coord)o);
+	    } else if (o instanceof byte[]) {
+		byte[] b = (byte[])((byte[])o);
+		this.adduint8(14);
+		if (b.length < 128) {
+		    this.adduint8(b.length);
+		} else {
+		    this.adduint8(128);
+		    this.addint32(b.length);
+		}
+
+		this.addbytes(b);
+	    } else if (o instanceof Color) {
+		this.adduint8(6);
+		this.addcolor((Color)o);
+	    } else if (o instanceof Float) {
+		this.adduint8(15);
+		this.addfloat32((Float)o);
+	    } else if (o instanceof Double) {
+		this.adduint8(16);
+		this.addfloat64((double)((Double)o).floatValue());
+	    } else {
+		if (!(o instanceof Coord2d)) {
+		    throw new RuntimeException("Cannot encode a " + o.getClass() + " as TTO");
+		}
+
+		this.adduint8(19);
+		this.addfloat64(((Coord2d)o).x);
+		this.addfloat64(((Coord2d)o).y);
+	    }
+	}
+
+	return this;
+    }
+
+    public boolean same(Object obj) {
+	if (obj instanceof Message) {
+	    Message other = (Message)obj;
+	    if (this.rbuf.length != other.rbuf.length) {
+		return false;
+	    } else {
+		for(int i = 0; i < this.rbuf.length; ++i) {
+		    if (this.rbuf[i] != other.rbuf[i]) {
+			return false;
+		    }
+		}
+
+		return true;
+	    }
+	} else {
+	    return false;
+	}
+    }
+
     public static class FormatError extends BinError {
 	public FormatError(String message) {
 	    super(message);
 	}
+
 	public FormatError(String message, Throwable cause) {
 	    super(message, cause);
 	}
     }
 
-    public abstract boolean underflow(int hint);
-
-    private void rensure(int len) {
-	while(len > rt - rh) {
-	    if(!underflow(rh + len - rt))
-		throw(new EOF("Required " + len + " bytes, got only " + (rt - rh)));
+    public static class EOF extends BinError {
+	public EOF(String message) {
+	    super(message);
 	}
     }
-    private int rget(int len) {
-	rensure(len);
-	int co = rh;
-	rh += len;
-	return(co);
-    }
 
-    public boolean eom() {
-	return(!((rh < rt) || underflow(1)));
-    }
-
-    public int int8() {
-	rensure(1);
-	return(rbuf[rh++]);
-    }
-    public int uint8() {
-	return(int8() & 0xff);
-    }
-    public int int16() {
-	int off = rget(2);
-	return(Utils.int16d(rbuf, off));
-    }
-    public int uint16() {
-	int off = rget(2);
-	return(Utils.uint16d(rbuf, off));
-    }
-    public int int32() {
-	int off = rget(4);
-	return(Utils.int32d(rbuf, off));
-    }
-    public long uint32() {
-	int off = rget(4);
-	return(Utils.uint32d(rbuf, off));
-    }
-    public long int64() {
-	int off = rget(8);
-	return(Utils.int64d(rbuf, off));
-    }
-    public String string() {
-	int l = 0;
-	while(true) {
-	    if(l >= rt - rh) {
-		if(!underflow(256))
-		    throw(new EOF("Found no NUL (at length " + l + ")"));
-	    }
-	    if(rbuf[l + rh] == 0) {
-		String ret = new String(rbuf, rh, l, StandardCharsets.UTF_8);
-		rh += l + 1;
-		return(ret);
-	    }
-	    l++;
+    public static class BinError extends RuntimeException {
+	public BinError(String message) {
+	    super(message);
 	}
-    }
-    public void skip(int n) {
-	while(n > 0) {
-	    if(rh >= rt) {
-		if(!underflow(Math.min(n, 1024)))
-		    throw(new EOF("Out of bytes to skip"));
-	    }
-	    int s = Math.min(n, rt - rh);
-	    rh += s;
-	    n -= s;
+
+	public BinError(String message, Throwable cause) {
+	    super(message, cause);
 	}
-    }
-    public void skip() {
-	do rh = rt; while(underflow(1024));
-    }
-    public byte[] bytes(int n) {
-	byte[] ret = new byte[n];
-	rensure(n);
-	System.arraycopy(rbuf, rh, ret, 0, n);
-	rh += n;
-	return(ret);
-    }
-    public byte[] bytes() {
-	while(underflow(65536));
-	return(bytes(rt - rh));
-    }
-    public void bytes(byte[] b, int off, int len) {
-	int olen = len;
-	while(len > 0) {
-	    if(rh >= rt) {
-		if(!underflow(Math.min(len, 1024)))
-		    throw(new EOF("Required " + olen + " bytes, got only " + (olen - len)));
-	    }
-	    int r = Math.min(len, rt - rh);
-	    System.arraycopy(rbuf, rh, b, off, r);
-	    rh += r;
-	    off += r;
-	    len -= r;
+
+	public BinError(Throwable cause) {
+	    super(cause);
 	}
-    }
-    public void bytes(byte[] b) {bytes(b, 0, b.length);}
-    public Coord coord() {
-	return(new Coord(int32(), int32()));
-    }
-    public Color color() {
-	return(new Color(uint8(), uint8(), uint8(), uint8()));
-    }
-    public float float8() {
-	return(Utils.mfdec((byte)int8()));
-    }
-    public float float16() {
-	return(Utils.hfdec((short)int16()));
-    }
-    public float float32() {
-	int off = rget(4);
-	return(Utils.float32d(rbuf, off));
-    }
-    public double float64() {
-	int off = rget(8);
-	return(Utils.float64d(rbuf, off));
-    }
-    public double cpfloat() {
-	int off = rget(5);
-	return(Utils.floatd(rbuf, off));
-    }
-
-    public float snorm8() {
-	return(Utils.clip(int8(), -0x7f, 0x7f) / 0x7fp0f);
-    }
-    public float unorm8() {
-	return(uint8() / 0xffp0f);
-    }
-    public float snorm16() {
-	return(Utils.clip(int16(), -0x7fff, 0x7fff) / 0x7fffp0f);
-    }
-    public float unorm16() {
-	return(uint16() / 0xffffp0f);
-    }
-    public double snorm32() {
-	return(Utils.clip(int32(), -0x7fffffff, 0x7fffffff) / 0x7fffffffp0);
-    }
-    public double unorm32() {
-	return(uint32() / 0xffffffffp0);
-    }
-
-    public Object[] list() {
-	ArrayList<Object> ret = new ArrayList<Object>();
-	list: while(true) {
-	    if(eom())
-		break;
-	    int t = uint8();
-	    switch(t) {
-	    case T_END:
-		break list;
-	    case T_INT:
-		ret.add(int32());
-		break;
-	    case T_STR:
-		ret.add(string());
-		break;
-	    case T_COORD:
-		ret.add(coord());
-		break;
-	    case T_UINT8:
-		ret.add(uint8());
-		break;
-	    case T_UINT16:
-		ret.add(uint16());
-		break;
-	    case T_INT8:
-		ret.add(int8());
-		break;
-	    case T_INT16:
-		ret.add(int16());
-		break;
-	    case T_COLOR:
-		ret.add(color());
-		break;
-	    case T_TTOL:
-		ret.add(list());
-		break;
-	    case T_NIL:
-		ret.add(null);
-		break;
-	    case T_UID:
-		ret.add(int64());
-		break;
-	    case T_BYTES:
-		int len = uint8();
-		if((len & 128) != 0)
-		    len = int32();
-		ret.add(bytes(len));
-		break;
-	    case T_FLOAT32:
-		ret.add(float32());
-		break;
-	    case T_FLOAT64:
-		ret.add(float64());
-		break;
-	    case T_FCOORD32:
-		ret.add(new Coord2d(float32(), float32()));
-		break;
-	    case T_FCOORD64:
-		ret.add(new Coord2d(float64(), float64()));
-		break;
-	    default:
-		throw(new FormatError("Encountered unknown type " + t + " in TTO list."));
-	    }
-	}
-	return(ret.toArray());
-    }
-
-    public abstract void overflow(int min);
-
-    private void wensure(int len) {
-	if(len > wt - wh)
-	    overflow(len);
-    }
-    private int wget(int len) {
-	wensure(len);
-	int co = wh;
-	wh += len;
-	return(co);
-    }
-
-    public Message addbytes(byte[] src, int off, int len) {
-	wensure(len);
-	System.arraycopy(src, off, wbuf, wh, len);
-	wh += len;
-	return(this);
-    }
-    public Message addbytes(byte[] src) {
-	addbytes(src, 0, src.length);
-	return(this);
-    }
-    public Message addint8(byte num) {
-	wensure(1);
-	wbuf[wh++] = num;
-	return(this);
-    }
-    public Message adduint8(int num) {
-	wensure(1);
-	wbuf[wh++] = (byte)num;
-	return(this);
-    }
-    public Message addint16(short num) {
-	int off = wget(2);
-	Utils.int16e(num, wbuf, off);
-	return(this);
-    }
-    public Message adduint16(int num) {
-	int off = wget(2);
-	Utils.uint16e(num, wbuf, off);
-	return(this);
-    }
-    public Message addint32(int num) {
-	int off = wget(4);
-	Utils.int32e(num, wbuf, off);
-	return(this);
-    }
-    public Message adduint32(long num) {
-	int off = wget(4);
-	Utils.uint32e(num, wbuf, off);
-	return(this);
-    }
-    public Message addint64(long num) {
-	int off = wget(8);
-	Utils.int64e(num, wbuf, off);
-	return(this);
-    }
-    public Message addstring2(String str) {
-	addbytes(str.getBytes(StandardCharsets.UTF_8));
-	return(this);
-    }
-    public Message addstring(String str) {
-	addstring2(str); adduint8(0);
-	return(this);
-    }
-    public Message addcoord(Coord c) {
-	addint32(c.x); addint32(c.y);
-	return(this);
-    }
-    public Message addcolor(Color color) {
-	adduint8(color.getRed()); adduint8(color.getGreen());
-	adduint8(color.getBlue()); adduint8(color.getAlpha());
-	return(this);
-    }
-    public Message addfloat8(float num) {
-	return(addint8(Utils.mfenc(num)));
-    }
-    public Message addfloat16(float num) {
-	return(addint16(Utils.hfenc(num)));
-    }
-    public Message addfloat32(float num) {
-	int off = wget(4);
-	Utils.float32e(num, wbuf, off);
-	return(this);
-    }
-    public Message addfloat64(double num) {
-	int off = wget(8);
-	Utils.float64e(num, wbuf, off);
-	return(this);
-    }
-
-    public Message addlist(Object... args) {
-	for(Object o : args) {
-	    if(o == null) {
-		adduint8(T_NIL);
-	    } else if(o instanceof Integer) {
-		adduint8(T_INT);
-		addint32(((Integer)o).intValue());
-	    } else if(o instanceof String) {
-		adduint8(T_STR);
-		addstring((String)o);
-	    } else if(o instanceof Coord) {
-		adduint8(T_COORD);
-		addcoord((Coord)o);
-	    } else if(o instanceof byte[]) {
-		byte[] b = (byte[])o;
-		adduint8(T_BYTES);
-		if(b.length < 128) {
-		    adduint8(b.length);
-		} else {
-		    adduint8(0x80);
-		    addint32(b.length);
-		}
-		addbytes(b);
-	    } else if(o instanceof Color) {
-		adduint8(T_COLOR);
-		addcolor((Color)o);
-	    } else if(o instanceof Float) {
-		adduint8(T_FLOAT32);
-		addfloat32(((Float)o).floatValue());
-	    } else if(o instanceof Double) {
-		adduint8(T_FLOAT64);
-		addfloat64(((Double)o).floatValue());
-	    } else if(o instanceof Coord2d) {
-		adduint8(T_FCOORD64);
-		addfloat64(((Coord2d)o).x);
-		addfloat64(((Coord2d)o).y);
-	    } else if(o instanceof Object[]) {
-		adduint8(T_TTOL);
-		addlist((Object[])o);
-		adduint8(T_END);
-	    } else {
-		throw(new RuntimeException("Cannot encode a " + o.getClass() + " as TTO"));
-	    }
-	}
-	return(this);
-    }
-
-    public boolean same(Object obj) {
-	if(obj instanceof Message) {
-	    Message other = (Message) obj;
-	    if(this.rbuf.length != other.rbuf.length) {
-		return false;
-	    } else {
-		for(int i = 0; i < this.rbuf.length; i++) {
-		    if(this.rbuf[i] != other.rbuf[i]) {
-			return false;
-		    }
-		}
-	    }
-	    return true;
-	}
-	return false;
     }
 }
