@@ -71,6 +71,7 @@ public class Resource {
     static final int CODEENTRY;
     static final int SOURCES;
     static final int NTOOLTIP;
+    static final int MTOOLTIP;
     static final int MAT2;
     static final int TILESET2;
     static final int TEX;
@@ -317,6 +318,7 @@ public class Resource {
 				case "anim":
 				case "tooltip":
 				case "ntooltip":
+				case "markdown":
 				case "overlay":
 				case "tileset2":
 				case "mat2":
@@ -452,6 +454,7 @@ public class Resource {
 	CODEENTRY = TYPES++;
 	SOURCES = TYPES++;
 	NTOOLTIP = TYPES++;
+	MTOOLTIP = TYPES++;
 	MAT2 = TYPES++;
 	TILESET2 = TYPES++;
 	TEX = TYPES++;
@@ -473,6 +476,7 @@ public class Resource {
 	ltypes.put("mat2", NewMat.class);
 	ltypes.put("tileset2", TileSet2.class);
 	ltypes.put("ntooltip", NTooltip.class);
+	ltypes.put("markdown", MTooltip.class);
 	ltypes.put("overlay", Overlay.class);
 	ltypes.put("tex", Tex.class);
     }
@@ -842,6 +846,71 @@ public class Resource {
 	    out.write(Utils.byte_strd(this.name));
 	    out.write(Utils.byte_strd(this.req));
 	    out.write(Utils.byte_strd(this.t));
+	}
+    }
+
+    public class MTooltip extends Layer {
+	public final byte[] content;  // Храним весь контент как массив байтов
+	private int size = 0;
+
+	// Конструктор для инициализации из byte массива
+	public MTooltip(byte[] buf) {
+	    super();
+	    this.content = buf;  // Просто сохраняем массив байтов
+	    this.size = buf.length;  // Размер равен длине массива
+	}
+
+	// Конструктор для инициализации из файла
+	public MTooltip(File data) throws IOException {
+	    super();
+	    this.content = readFileToByteArray(data);  // Читаем весь файл как byte[]
+	    this.size = this.content.length;  // Размер равен длине контента
+	}
+
+	// Метод чтения файла как byte[]
+	private byte[] readFileToByteArray(File file) throws IOException {
+	    try (FileInputStream fis = new FileInputStream(file)) {
+		return fis.readAllBytes();  // Читаем весь файл в byte массив
+	    }
+	}
+
+	// Метод записи byte[] в файл
+	private void writeByteArrayToFile(byte[] data, File file) throws IOException {
+	    try (FileOutputStream fos = new FileOutputStream(file)) {
+		fos.write(data);  // Записываем массив байтов в файл
+	    }
+	}
+
+	// Возвращает размер
+	public int size() {
+	    return this.size;
+	}
+
+	// Возвращает тип
+	public int type() {
+	    return Resource.MTOOLTIP;
+	}
+
+	// Возвращает тип в виде байтового массива
+	public byte[] type_buffer() {
+	    return new byte[]{109, 97, 114, 107, 100, 111, 119, 110, 0};  // "markdown" в ASCII
+	}
+
+	// Метод инициализации
+	public void init() {
+	}
+
+	// Метод декодирования: сохраняем контент в файл
+	public void decode(String res, int i) throws IOException {
+	    File f = new File(res + "/markdown/markdown" + i + ".data");
+	    (new File(res + "/markdown/")).mkdirs();
+	    f.createNewFile();
+	    writeByteArrayToFile(this.content, f);  // Записываем byte[] в файл
+	}
+
+	// Метод кодирования: записываем контент как байты в OutputStream
+	public void encode(OutputStream out) throws IOException {
+	    out.write(this.content);  // Записываем весь контент в поток
 	}
     }
 
