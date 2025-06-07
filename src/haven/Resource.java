@@ -76,6 +76,8 @@ public class Resource {
     static final int TILESET2;
     static final int TEX;
     static final int OVERLAY;
+
+    static final int FONT;
     private Collection<? extends Layer> layers;
     public final String out;
     public final String name;
@@ -156,14 +158,15 @@ public class Resource {
 
 		int ib;
 		while((ib = in.read()) != -1) {
-		    byte bb = (byte)ib;
+		    int bb = (byte)ib;
 		    if (bb == 0) {
 			buf = new byte[4];
 			this.readall(in, buf);
-			bb = (byte) Utils.int32d(buf, 0);
+			bb = Utils.int32d(buf, 0);
 			buf = new byte[bb];
 			this.readall(in, buf);
 			String layerName = tbuf.toString();
+
 			Class<? extends Layer> lc = (Class)ltypes.get(layerName);
 			if (lc == null) {
 			    System.out.println(String.format("Couldn't find  layer class for '%s'", layerName));
@@ -320,6 +323,7 @@ public class Resource {
 				case "ntooltip":
 				case "markdown":
 				case "overlay":
+				case "font":
 				case "tileset2":
 				case "mat2":
 				case "tileset":
@@ -341,7 +345,7 @@ public class Resource {
 					    continue label208;
 					}
 
-					if (df[j].getName().endsWith(".data")) {
+					if (df[j].getName().endsWith(".data") || df[j].getName().endsWith(".ttf")) {
 					    layers.add((Layer) cons.newInstance(this, df[j]));
 					}
 
@@ -459,6 +463,7 @@ public class Resource {
 	TILESET2 = TYPES++;
 	TEX = TYPES++;
 	OVERLAY = TYPES++;
+	FONT = TYPES++;
 	ltypes.put("image", Image.class);
 	ltypes.put("tooltip", Tooltip.class);
 	ltypes.put("tile", Tile.class);
@@ -479,6 +484,61 @@ public class Resource {
 	ltypes.put("markdown", MTooltip.class);
 	ltypes.put("overlay", Overlay.class);
 	ltypes.put("tex", Tex.class);
+	ltypes.put("font", Font.class);
+    }
+
+    public class Font extends Layer {
+	private byte[] raw;
+	private int version = 1;
+	private int type = 0;
+
+	public Font(byte[] buf) {
+	    MessageBuf msg = new MessageBuf(buf);
+	    version = msg.uint8();
+	    if (version != 1) throw new RuntimeException("Unsupported font version");
+
+	    type = msg.uint8();
+	    if (type != 0) throw new RuntimeException("Unsupported font type");
+
+	    raw = msg.bytes(); // Читаем оставшиеся данные
+	}
+
+	public Font(File ttfFile) throws IOException {
+	    try (FileInputStream fis = new FileInputStream(ttfFile)) {
+		raw = new byte[(int) ttfFile.length()];
+		fis.read(raw);
+	    }
+	}
+
+	public int size() {
+	    return 2 + raw.length; // Версия + тип + данные
+	}
+
+	public int type() {
+	    return Resource.FONT;
+	}
+
+	public byte[] type_buffer() {
+	    return new byte[]{102, 111, 110, 116, 0}; // "font" в ASCII
+	}
+
+	public void init() {}
+
+	public void decode(String res, int i) throws IOException {
+	    File dir = new File(res + "/font/");
+	    dir.mkdirs();
+
+	    File output = new File(dir, "font_" + i + ".ttf");
+	    try (FileOutputStream fos = new FileOutputStream(output)) {
+		fos.write(raw);
+	    }
+	}
+
+	public void encode(OutputStream out) throws Exception {
+	    out.write(version);   // Версия слоя
+	    out.write(type);      // Тип шрифта
+	    out.write(raw);      // Данные шрифта
+	}
     }
 
     public class Tex extends Layer {
