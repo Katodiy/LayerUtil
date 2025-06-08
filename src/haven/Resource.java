@@ -620,7 +620,7 @@ public class Resource {
 	    br.close();
 	    String str_id = data.getName().substring(data.getName().lastIndexOf("_") + 1, data.getName().lastIndexOf("."));
 	    int id = Integer.parseInt(str_id);
-	    String path = data.getPath().substring(0, data.getPath().lastIndexOf("\\"));
+	    String path = data.getPath().substring(0, data.getPath().lastIndexOf("/"));
 	    File img = new File(path + "/image_" + id + ".png");
 	    this.image = ImageIO.read(img);
 	    this.size = this.build().fin().length;
