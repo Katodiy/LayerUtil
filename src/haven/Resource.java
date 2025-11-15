@@ -265,6 +265,12 @@ public class Resource {
 			Class<? extends Layer> lc = (Class)ltypes.get(n);
 			if (lc != null) {
 			    File[] df = l[i].listFiles();
+			    Arrays.sort(df, new Comparator<File>(){
+				public int compare(File f1, File f2)
+				{
+				    return String.valueOf(f1.getName()).compareTo(f2.getName());
+				}
+			    });
 			    int j;
 			    Constructor cons;
 			    NoSuchMethodException e;
